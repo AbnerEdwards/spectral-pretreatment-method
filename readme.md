@@ -1,3 +1,4 @@
+```
 #!/usr/bin/env bin
 # -*- coding: utf-8 -*-
 import numpy as np
@@ -313,3 +314,4 @@ if __name__ == "__main__":
     p.PlotSpectrum(sg)
     plt.show()
     print("ok")
+```
