@@ -1,317 +1,159 @@
-```
-#!/usr/bin/env bin
-# -*- coding: utf-8 -*-
-import numpy as np
-import matplotlib.pyplot as plt
+
+
+# 算法列表
+
+  * 标准正态变换 MSC
+  * 多元散射校正 SNV
+  * Savitzky-Golay平滑滤波函数 SG
+  * 滑动平均滤波 move_avg
+  * 一阶差分 D1
+  * 二阶差分 D2
+  * 小波变换 wave
+  * 均值中心化 mean_centralization
+  * 标准化 standardlize
+  * 最大最小归一化 max_min_normalization
+  * 矢量归一化 vector_normalization
+
+感谢 @[panxy0826](https://blog.csdn.net/Joseph__Lagrange/article/details/95302398)的开源，本Tool 部分搬运修改于该作者
+
+# 快速使用
+
+## 1. 导入数据
+
+```python
+# 导入 pandas 读取数据
 import pandas as pd
-from pandas import DataFrame
-from sklearn import preprocessing
-from scipy.signal import savgol_filter
-from copy import deepcopy
-import pywt
+import numpy as np
 
-'''
-https://blog.csdn.net/Joseph__Lagrange/article/details/95302398
-https://blog.csdn.net/Joseph__Lagrange/article/details/95302953
-'''
-class Pretreatment:
+# 读取数据
+data = pd.read_csv("./data/peach_spectra_brix.csv")
 
-    def PlotSpectrum(self, spec, title='原始光谱'):
-        """
-        :param spec: shape (n_samples, n_features)
-        :return: plt
-        """
-        if isinstance(spec, pd.DataFrame):
-            spec = spec.values
-        spec = spec[:, :(spec.shape[1]-1)]
-        plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
-        plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
-        wl = np.linspace(900, 900+(spec.shape[1]-1)*3.14,spec.shape[1])
-        with plt.style.context(('ggplot')):
-            fonts = 6
-            plt.figure(figsize=(5.2, 3.1), dpi=200)
-            plt.plot(wl, spec.T)
-            plt.xlabel('Wavelength (nm)', fontsize=fonts)
-            plt.ylabel('reabsorbance', fontsize=fonts)
-            plt.title(title, fontsize=fonts)
-        return plt
-        # spec = deepcopy(spec)
-        # absorbances = spec.columns.values
-        # start_dot = absorbances[0]
-        # # 波段起始点
-        # end_dot = absorbances[-1]
-        # #波段终止点
-        # step = absorbances[1] - absorbances[0]
-        # # 步长
+# m * n 
+print("数据矩阵 data.shape：",data.shape)
 
-        #
-        # x = np.arange(start_dot, start_dot + step * spec.shape[1], step)
-        # # 根据光谱波段 开辟空间
-        # spec = spec.values
-        # # 将 spec 转换为 np.array
-        # for i in range(spec.shape[0]):
-        #     plt.plot(x, spec[i, :], linewidth=0.5)
-        #
-        # fonts = 8
-        # plt.xlim(start_dot, start_dot + step * spec.shape[1])
-        # #plt.ylim(0, 1)
-        # plt.title(title, fontsize=fonts)
-
-        # plt.yticks(fontsize=fonts)
-        # plt.xticks(fontsize=fonts)
-        # plt.tight_layout(pad=0.2)
-        # plt.grid(True)
-        # return plt
-
-    def mean_centralization(self, sdata):
-        """
-        均值中心化
-        """
-        sdata = deepcopy(sdata)
-        temp1 = np.mean(sdata, axis=0)
-        temp2 = np.tile(temp1, sdata.shape[0]).reshape(
-            (sdata.shape[0], sdata.shape[1]))
-        return sdata - temp2
-
-    def standardlize(self, sdata):
-        """
-        标准化
-        """
-        sdata = deepcopy(sdata)
-        if isinstance(sdata, pd.DataFrame):
-            sdata = sdata.values
-
-        sdata = preprocessing.scale(sdata)
-        return sdata
-
-    def msc(self, sdata):
-
-        sdata = deepcopy(sdata)
-        if isinstance(sdata, pd.DataFrame):
-            sdata = sdata.values
-
-        n = sdata.shape[0]  # 样本数量
-        k = np.zeros(sdata.shape[0])
-        b = np.zeros(sdata.shape[0])
-
-
-        M = np.array(np.mean(sdata, axis=0))
-
-        from sklearn.linear_model import LinearRegression
-        
-        for i in range(n):
-            y = sdata[i, :]
-            y = y.reshape(-1, 1)
-            M = M.reshape(-1, 1)
-            model = LinearRegression()
-            model.fit(M, y)
-            k[i] = model.coef_
-            b[i] = model.intercept_
-
-        spec_msc = np.zeros_like(sdata)
-        for i in range(n):
-            bb = np.repeat(b[i], sdata.shape[1])
-            kk = np.repeat(k[i], sdata.shape[1])
-            temp = (sdata[i, :] - bb) / kk
-            spec_msc[i, :] = temp
-        return spec_msc
-
-    # def msc(self, data_x):
-    #
-    #     absorbances = data_x.columns.values
-    #     from sklearn.linear_model import LinearRegression
-    #     ## 计算平均光谱做为标准光谱
-    #     mean = np.mean(data_x,axis = 0)
-    #
-    #     n,p = data_x.shape
-    #     msc_x = np.ones((n,p))
-    #
-    #     for i in range(n):
-    #         y = data_x.values[i,:]
-    #         lin = LinearRegression()
-    #         lin.fit(mean.reshape(-1,1),y.reshape(-1,1))
-    #         k = lin.coef_
-    #         b = lin.intercept_
-    #         msc_x[i,:] = (y - b) / k
-    #
-    #     msc_x = DataFrame(msc_x, columns=absorbances)
-    #     return msc_x
-
-    def D1(self, sdata):
-        """
-        一阶差分
-        """
-        sdata = deepcopy(sdata)
-        if isinstance(sdata, pd.DataFrame):
-            sdata = sdata.values
-        temp1 = pd.DataFrame(sdata)
-        temp2 = temp1.diff(axis=1)
-        temp3 = temp2.values
-        return np.delete(temp3, 0, axis=1)
-
-    def D2(self, sdata):
-        """
-        二阶差分
-        """
-        sdata = deepcopy(sdata)
-        if isinstance(sdata, pd.DataFrame):
-            sdata = sdata.values
-        temp2 = (pd.DataFrame(sdata)).diff(axis=1)
-        temp3 = np.delete(temp2.values, 0, axis=1)
-        temp4 = (pd.DataFrame(temp3)).diff(axis=1)
-        spec_D2 = np.delete(temp4.values, 0, axis=1)
-        return spec_D2
-
-    def snv(self, sdata):
-        """
-        标准正态变量变换
-        """
-        sdata = deepcopy(sdata)
-        if isinstance(sdata, pd.DataFrame):
-            sdata = sdata.values
-        temp1 = np.mean(sdata, axis=1)   # 求均值
-        temp2 = np.tile(temp1, sdata.shape[1]).reshape((sdata.shape[0],
-                                                        sdata.shape[1]), order='F')
-        temp3 = np.std(sdata, axis=1)    # 标准差
-        temp4 = np.tile(temp3, sdata.shape[1]).reshape((sdata.shape[0],
-                                                        sdata.shape[1]), order='F')
-        return (sdata - temp2) / temp4
-    
-    def max_min_normalization(self, data):
-        """
-        最大最小归一化
-        """
-        data = deepcopy(data)
-        # min = np.min(data, axis=0)
-        # max = np.max(data, axis=0)
-        # res = (data - min) / (max - min)
-        if isinstance(data, pd.DataFrame):
-            data = data.values
-        min_max_scaler = preprocessing.MinMaxScaler()
-        res = min_max_scaler.fit_transform(data.T)
-        return res.T
-
-    def vector_normalization(self, data):
-        """
-        矢量归一化
-        """
-        data = deepcopy(data)
-        if isinstance(data, pd.DataFrame):
-            data = data.values
-        x_mean = np.mean(data, axis=1)   # 求均值
-        x_means = np.tile(x_mean, data.shape[1]).reshape((data.shape[0], data.shape[1]), order='F')
-        x_2 = np.power(data,2)
-        x_sum = np.sum(x_2,axis=1)
-        x_sqrt = np.sqrt(x_sum)
-        x_low = np.tile(x_sqrt, data.shape[1]).reshape((data.shape[0],data.shape[1]), order='F')
-        return (data - x_means) / x_low
-
-
-    def SG(self, data, w=5, p=3, d=0):
-        """
-        SG平滑 
-        待处理
-        """
-        data = deepcopy(data)
-        if isinstance(data, pd.DataFrame):
-            data = data.values
-        # data_sg = []
-        # for item in data.iterrows():
-        #     # print(item[0], item[1])
-        #     data_sg.append(savgol_filter(item[1], x, y, mode=mode))
-        # return DataFrame(data_sg, columns=absorbances)
-        # savgol_filter(X, 2 * w + 1, polyorder=p, deriv=0)
-        data = savgol_filter(data, w, polyorder=p, deriv=d)
-        return data
-
-    def wave(self, data_x):  # 小波变换
-        data_x = deepcopy(data_x)
-        if isinstance(data_x, pd.DataFrame):
-            data_x = data_x.values
-        def wave_(data_x):
-            w = pywt.Wavelet('db8')  # 选用Daubechies8小波
-            maxlev = pywt.dwt_max_level(len(data_x), w.dec_len)
-            coeffs = pywt.wavedec(data_x, 'db8', level=maxlev)
-            threshold = 0.04
-            for i in range(1, len(coeffs)):
-                coeffs[i] = pywt.threshold(coeffs[i], threshold * max(coeffs[i]))
-            datarec = pywt.waverec(coeffs, 'db8')
-            return datarec
-
-        tmp = None
-        for i in range(data_x.shape[0]):
-            if (i == 0):
-                tmp = wave_(data_x[i])
-            else:
-                tmp = np.vstack((tmp, wave_(data_x[i])))
-        return tmp
-
-    def move_avg(self,data_x, n=15, mode="valid"):
-        # 滑动平均滤波
-        data_x = deepcopy(data_x)
-        if isinstance(data_x, pd.DataFrame):
-            data_x = data_x.values
-        tmp = None
-        for i in range(data_x.shape[0]):
-            if (i == 0):
-                tmp = np.convolve(data_x[i, :], np.ones((n,)) / n, mode=mode)
-            else:
-                tmp = np.vstack((tmp, np.convolve(data_x[i, :], np.ones((n,)) / n, mode=mode)))
-        return tmp
-
-    def msc_2(input_data, reference=None):
-        ''' Perform Multiplicative scatter correction'''
-    
-        # mean centre correction
-        for i in range(input_data.shape[0]):
-            input_data[i,:] -= input_data[i,:].mean()
-    
-        # Get the reference spectrum. If not given, estimate it from the mean
-        if reference is None:
-            # Calculate mean
-            ref = np.mean(input_data, axis=0)
-        else:
-            ref = reference
-    
-        # Define a new array and populate it with the corrected data
-        data_msc = np.zeros_like(input_data)
-        for i in range(input_data.shape[0]):
-            # Run regression
-            fit = np.polyfit(ref, input_data[i,:], 1, full=True)
-            # Apply correction
-            data_msc[i,:] = (input_data[i,:] - fit[0][1]) / fit[0][0]
-    
-        return (data_msc, ref)
-    
-    
-    def snv_2(input_data):
-        # Define a new array and populate it with the corrected data
-        output_data = np.zeros_like(input_data)
-        for i in range(input_data.shape[0]):
-            # Apply correction
-            output_data[i, :] = (input_data[i, :] - np.mean(input_data[i, :])) / np.std(input_data[i, :])
-    
-        return output_data
-
-if __name__ == "__main__":
-    # import scipy.stats
-    # import scipy.io as scio
-    # from pandas import DataFrame
-    #
-
-    # print(x.values[2,:])
-    # plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
-    # plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
-    # fig1 = plt.figure()
-    # plt.plot(x.columns,x.values[2])
-    #
-    data = pd.read_excel(r"苹果.xlsx")
-    #
-    x = data.drop(['name'], axis=1)
-    p = Pretreatment()
-    sg = p.SG(x, 4*5+1,2*3,2)
-    # d1 = p.D1(x)
-    p.PlotSpectrum(sg)
-    plt.show()
-    print("ok")
+# 50个样本， 600个 波段 第一列是 桃子糖度值 需要分离开
+X = data.values[:,1:] 
 ```
+
+## 2. 数据绘制
+
+```python
+from pretreatment import Pretreatment as pre
+p = pre()
+
+# 该方法为快速示例 而编写 
+# 测试用例 图片名 波段起始点 波段间距
+p.PlotSpectrum(X, '演示', 0, 5).show()
+## 为保证数据可以正确绘制 请将 矩阵转化为 numpy.ndarray 格式
+type(X)
+```
+
+<img src="assets/image-20211018212653707.png" alt="image-20211018212653707" style="zoom: 33%;" />
+
+## 3. 数据预处理
+
+### 标准正态变换 MSC
+
+```python
+msc = p.msc(X)
+p.PlotSpectrum(msc, 'msc', 0, 5).show()
+```
+
+<img src="assets/image-20211018212754142.png" alt="image-20211018212754142" style="zoom: 33%;" />
+
+### 多元散射校正 SNV
+
+```python
+snv = p.snv(X)
+p.PlotSpectrum(snv, 'snv', 0, 5).show()
+```
+
+<img src="assets/image-20211018212821032.png" alt="image-20211018212821032" style="zoom: 33%;" />
+
+### Savitzky-Golay平滑滤波函数 SG
+
+```python
+# 此处参数为参考 具体 后续 详述
+sg = p.SG(X, 4*5+1,2*3,2)
+p.PlotSpectrum(sg, 'sg', 0, 5).show
+```
+
+<img src="assets/image-20211018212847272.png" alt="image-20211018212847272" style="zoom: 33%;" />
+
+### 滑动平均滤波 move_avg
+
+```python
+move_avg = p.move_avg(X)
+p.PlotSpectrum(move_avg, 'move_avg', 0, 5).show
+```
+
+<img src="assets/image-20211018212913863.png" alt="image-20211018212913863" style="zoom:33%;" />
+
+### 一阶差分 D1
+
+```python
+D1 = p.D1(X)
+p.PlotSpectrum(D1, 'D1', 0, 5).show
+```
+
+<img src="assets/image-20211018212939808.png" alt="image-20211018212939808" style="zoom:33%;" />
+
+### 二阶差分 D2
+
+```python
+D2 = p.D2(X)
+p.PlotSpectrum(D2, 'D2', 0, 5).show
+```
+
+<img src="assets/image-20211018212958282.png" alt="image-20211018212958282" style="zoom:33%;" />
+
+### 小波变换 wave
+
+```python
+wave = p.wave(X)
+p.PlotSpectrum(wave, 'wave', 0, 5).show
+```
+
+<img src="assets/image-20211018213018343.png" alt="image-20211018213018343" style="zoom:33%;" />
+
+### 均值中心化 mean_centralization
+
+```python
+mean_centralization = p.mean_centralization(X)
+p.PlotSpectrum(mean_centralization, 'mean_centralization', 0, 5).show
+```
+
+<img src="assets/image-20211018213038106.png" alt="image-20211018213038106" style="zoom:33%;" />
+
+### 标准化 standardlize
+
+```python
+standardlize = p.standardlize(X)
+p.PlotSpectrum(standardlize, 'standardlize', 0, 5).show
+```
+
+<img src="assets/image-20211018213059006.png" alt="image-20211018213059006" style="zoom:33%;" />
+
+### 最大最小归一化 max_min_normalization
+
+```python
+max_min_normalization = p.max_min_normalization(X)
+p.PlotSpectrum(max_min_normalization, 'max_min_normalization', 0, 5).show
+```
+
+<img src="assets/image-20211018213117138.png" alt="image-20211018213117138" style="zoom:33%;" />
+
+### 矢量归一化 vector_normalization
+
+```python
+vector_normalization = p.vector_normalization(X)
+p.PlotSpectrum(vector_normalization, 'vector_normalization', 0, 5).show
+```
+
+<img src="assets/image-20211018213156529.png" alt="image-20211018213156529" style="zoom:33%;" />
+
+# 注意事项
+
+先将如何使用写出，具体原理后续会补上
+
+示例数据来源：[nirpyresearch.com](https://nirpyresearch.com/)
